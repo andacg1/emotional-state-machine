@@ -38,7 +38,7 @@ LANGSMITH_API_KEY=lsv2...
 3. Start the LangGraph Server.
 
 ```shell
-langgraph dev
+langgraph dev --debug-port 6323
 ```
 
 For more information on getting started with LangGraph Server, [see here](https://langchain-ai.github.io/langgraph/tutorials/langgraph-platform/local-server/).
