@@ -97,8 +97,28 @@ SYSTEM_MESSAGES = [
 ]
 
 
+def _knowledge_system_message(current_knowledge: List[str] | None) -> SystemMessage:
+    existing = "\n".join(f"- {k}" for k in current_knowledge) if current_knowledge else "None yet."
+    return SystemMessage(f"""
+    ## Structured output rules
+
+    You must populate the `knowledge` field with everything the player has revealed so far.
+    The current list is:
+    {existing}
+
+    Rules:
+    - ALWAYS include every distinct fact from the current list above — never drop an item entirely.
+    - You MAY merge or rephrase redundant entries into a single, shorter entry to save space.
+    - Add any new facts the player just revealed in this turn.
+    - Return `null` only if the player has revealed absolutely nothing across the entire conversation.
+    """)
+
+
 async def get_user_input(state: OverallState, runtime: Runtime[Context]) -> dict:
-    response: NPCResponse = await structured_llm.ainvoke(SYSTEM_MESSAGES + state["messages"])
+    knowledge_msg = _knowledge_system_message(state.get("knowledge"))
+    response: NPCResponse = await structured_llm.ainvoke(
+        SYSTEM_MESSAGES + [knowledge_msg] + state["messages"]
+    )
 
     return {
         "messages": [AIMessage(content=response.message)],
