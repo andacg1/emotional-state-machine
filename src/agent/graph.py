@@ -20,7 +20,22 @@ from langgraph.checkpoint.memory import InMemorySaver
 import getpass
 import os
 
-from agent.evie_marlowe import polite_mask, State, initialize_evie
+from agent.evie_marlowe import (
+    State,
+    initialize_evie,
+    polite_mask,
+    wary_softening,
+    bitter_remembering,
+    defensive_denial,
+    evidence_pressure,
+    guarded_disclosure,
+    fear_spike,
+    broken_trusting,
+    protected_witness,
+    cornered_confession,
+    cold_shutdown,
+    panicked_resistance,
+)
 from agent.llm import structured_llm, summarization_model
 from agent.npc import NPCResponse
 
@@ -123,6 +138,17 @@ graph = (
     StateGraph(State, context_schema=Context)
     .add_node("INITIALIZE", initialize_evie)
     .add_node("POLITE_MASK", polite_mask)
+    .add_node("WARY_SOFTENING", wary_softening)
+    .add_node("BITTER_REMEMBERING", bitter_remembering)
+    .add_node("DEFENSIVE_DENIAL", defensive_denial)
+    .add_node("EVIDENCE_PRESSURE", evidence_pressure)
+    .add_node("GUARDED_DISCLOSURE", guarded_disclosure)
+    .add_node("FEAR_SPIKE", fear_spike)
+    .add_node("BROKEN_TRUSTING", broken_trusting)
+    .add_node("PROTECTED_WITNESS", protected_witness)
+    .add_node("CORNERED_CONFESSION", cornered_confession)
+    .add_node("COLD_SHUTDOWN", cold_shutdown)
+    .add_node("PANICKED_RESISTANCE", panicked_resistance)
     .add_node("summarize", summarization_node)
     .add_edge(START, "INITIALIZE")
     .add_edge("INITIALIZE", "POLITE_MASK")
