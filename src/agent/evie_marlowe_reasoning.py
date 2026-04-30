@@ -9,7 +9,7 @@ Two nodes per turn:
 from __future__ import annotations
 
 import os
-from typing import List
+from typing import List, Literal
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
@@ -68,6 +68,16 @@ Evaluate the player's message and set each condition to true ONLY if it is
 clearly and directly present in what the player said.
 """)
 
+type EvieMilestone = Literal[
+    "empathy",
+    "protection_offer",
+    "blackmail_proof",
+    "locket_evidence",
+    "brennan_connection",
+    "alley_presence",
+    "murder_weapon",
+    "direct_accusation"
+]
 
 # ── Subgraph state ────────────────────────────────────────────────────────────
 
@@ -82,7 +92,7 @@ class EvieReasoningState(TypedDict):
     guilt_pressure: int
     suspicion_level: int
     # Milestone set (stored as list — TypedDict cannot hold sets)
-    milestones: List[str]
+    milestones: List[EvieMilestone]
     # Boolean memory flags
     player_has_offered_protection: bool
     player_has_found_blackmail_photos: bool
@@ -114,6 +124,7 @@ def _count_any(milestones: List[str], required: List[str]) -> int:
 # ── Node 1: condition detection (LLM) ────────────────────────────────────────
 
 async def detect_conditions(state: EvieReasoningState) -> dict:
+    print(state)
     conditions: PlayerInputConditions = await _condition_llm.ainvoke([
         _DETECTION_SYSTEM,
         HumanMessage(state["player_input"]),
@@ -124,22 +135,23 @@ async def detect_conditions(state: EvieReasoningState) -> dict:
 # ── Node 2: memory update + state transition (pure Python) ───────────────────
 
 def apply_transitions(state: EvieReasoningState) -> dict:
+    print(state)
     c = state["detected_conditions"]
-    milestones = list(state["milestones"])
+    milestones = state["milestones"]
 
-    trust_level = state["trust_level"]
-    fear_level = state["fear_level"]
-    guilt_pressure = state["guilt_pressure"]
-    suspicion_level = state["suspicion_level"]
-    player_has_offered_protection = state["player_has_offered_protection"]
-    player_has_found_blackmail_photos = state["player_has_found_blackmail_photos"]
-    player_has_shown_locket = state["player_has_shown_locket"]
-    player_has_mentioned_brennan = state["player_has_mentioned_brennan"]
-    player_knows_evie_was_at_alley = state["player_knows_evie_was_at_alley"]
-    player_has_accused_evie = state["player_has_accused_evie"]
-    player_has_revealed_murder_weapon = state["player_has_revealed_murder_weapon"]
-    critical_info_revealed = state["critical_info_revealed"]
-    final_clue_revealed = state["final_clue_revealed"]
+    trust_level = state.get("trust_level")
+    fear_level = state.get("fear_level")
+    guilt_pressure = state.get("guilt_pressure")
+    suspicion_level = state.get("suspicion_level")
+    player_has_offered_protection = state.get("player_has_offered_protection")
+    player_has_found_blackmail_photos = state.get("player_has_found_blackmail_photos")
+    player_has_shown_locket = state.get("player_has_shown_locket")
+    player_has_mentioned_brennan = state.get("player_has_mentioned_brennan")
+    player_knows_evie_was_at_alley = state.get("player_knows_evie_was_at_alley")
+    player_has_accused_evie = state.get("player_has_accused_evie")
+    player_has_revealed_murder_weapon = state.get("player_has_revealed_murder_weapon")
+    critical_info_revealed = state.get("critical_info_revealed")
+    final_clue_revealed = state.get("final_clue_revealed")
 
     def add_milestone(m: str) -> None:
         if m not in milestones:
@@ -206,7 +218,7 @@ def apply_transitions(state: EvieReasoningState) -> dict:
 
     # ── State transition ──────────────────────────────────────────────────────
 
-    next_node = _transition(state["current_node"], c, guarded_ready, critical_ready)
+    next_node = _transition(state.get("current_node") or "POLITE_MASK", c, guarded_ready, critical_ready)
 
     if next_node in ("BROKEN_TRUSTING", "PROTECTED_WITNESS", "CORNERED_CONFESSION"):
         critical_info_revealed = True

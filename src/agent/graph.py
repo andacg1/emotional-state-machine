@@ -20,6 +20,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 import getpass
 import os
 
+from agent.evie_marlowe import polite_mask, State, initialize_evie
 from agent.llm import structured_llm, summarization_model
 from agent.npc import NPCResponse
 
@@ -54,25 +55,25 @@ class Context(TypedDict):
 class PrivateState(TypedDict):
     secret_knowledge: List[str] | None
 
-class OverallState(MessagesState):
-    """Input state for the agent.
-
-    Defines the initial structure of incoming data.
-    See: https://langchain-ai.github.io/langgraph/concepts/low_level/#state
-    """
-
-    emotion: Literal["relaxed", "nervous", "panicking", "angry", "upset", "depressed"]
-    milestone: List[Literal["has_seen_evidence", "has_revealed_secret"]]
-    topic: str
-    summary: str
-    # Information revealed by player
-    knowledge: List[str] | None
-
-    # Generated content
-    draft_response: str | None
-    # messages: Sequence[str]
-    messages: Annotated[list[AnyMessage], add_messages]
-    # messages: Annotated[list[AnyMessage], add_messages]
+# class OverallState(MessagesState):
+#     """Input state for the agent.
+#
+#     Defines the initial structure of incoming data.
+#     See: https://langchain-ai.github.io/langgraph/concepts/low_level/#state
+#     """
+#
+#     emotion: Literal["relaxed", "nervous", "panicking", "angry", "upset", "depressed"]
+#     milestone: List[Literal["has_seen_evidence", "has_revealed_secret"]]
+#     topic: str
+#     summary: str
+#     # Information revealed by player
+#     knowledge: List[str] | None
+#
+#     # Generated content
+#     draft_response: str | None
+#     # messages: Sequence[str]
+#     messages: Annotated[list[AnyMessage], add_messages]
+#     # messages: Annotated[list[AnyMessage], add_messages]
 
 
 SYSTEM_MESSAGES = [
@@ -92,21 +93,7 @@ SYSTEM_MESSAGES = [
 ]
 
 
-def _knowledge_system_message(current_knowledge: List[str] | None) -> SystemMessage:
-    existing = "\n".join(f"- {k}" for k in current_knowledge) if current_knowledge else "None yet."
-    return SystemMessage(f"""
-    ## Structured output rules
 
-    You must populate the `knowledge` field with everything the player has revealed so far.
-    The current list is:
-    {existing}
-
-    Rules:
-    - ALWAYS include every distinct fact from the current list above — never drop an item entirely.
-    - You MAY merge or rephrase redundant entries into a single, shorter entry to save space.
-    - Add any new facts the player just revealed in this turn.
-    - Return `null` only if the player has revealed absolutely nothing across the entire conversation.
-    """)
 
 summarization_node = SummarizationNode(
     token_counter=count_tokens_approximately,
@@ -116,26 +103,28 @@ summarization_node = SummarizationNode(
     max_summary_tokens=128,
 )
 
-async def get_user_input(state: OverallState, runtime: Runtime[Context]) -> dict:
-    knowledge_msg = _knowledge_system_message(state.get("knowledge"))
-    response: NPCResponse = await structured_llm.ainvoke(
-        SYSTEM_MESSAGES + [knowledge_msg] + state["messages"]
-    )
-
-    return {
-        "messages": [AIMessage(content=response.message)],
-        "emotion": response.emotion,
-        "topic": response.topic,
-        "summary": response.summary,
-        "knowledge": response.knowledge,
-    }
+# async def get_user_input(state: OverallState, runtime: Runtime[Context]) -> dict:
+#     knowledge_msg = _knowledge_system_message(state.get("knowledge"))
+#     response: NPCResponse = await structured_llm.ainvoke(
+#         SYSTEM_MESSAGES + [knowledge_msg] + state["messages"]
+#     )
+#
+#     return {
+#         "messages": [AIMessage(content=response.message)],
+#         "emotion": response.emotion,
+#         "topic": response.topic,
+#         "summary": response.summary,
+#         "knowledge": response.knowledge,
+#     }
 
 checkpointer = InMemorySaver()
 # Define the graph
 graph = (
-    StateGraph(OverallState, context_schema=Context)
-    .add_node(get_user_input)
+    StateGraph(State, context_schema=Context)
+    .add_node("INITIALIZE", initialize_evie)
+    .add_node("POLITE_MASK", polite_mask)
     .add_node("summarize", summarization_node)
-    .add_edge(START, "get_user_input")
+    .add_edge(START, "INITIALIZE")
+    .add_edge("INITIALIZE", "POLITE_MASK")
     .compile(name="NPC Graph")
 )

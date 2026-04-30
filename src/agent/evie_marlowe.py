@@ -3,16 +3,16 @@ LangGraph nodes for a sample character named Evie Marlowe.
 """
 from typing import Annotated, List
 
-from langchain_core.messages import SystemMessage, AnyMessage
+from langchain_core.messages import SystemMessage, AnyMessage, AIMessage
 import random
 from typing_extensions import TypedDict, Literal
 from langgraph.graph import StateGraph, START, MessagesState, add_messages
 from langgraph.types import Command
 
-from agent.evie_marlowe_reasoning import evie_reasoning_subgraph, EvieReasoningState
-from agent.graph import _knowledge_system_message
+from agent.evie_marlowe_reasoning import evie_reasoning_subgraph, EvieReasoningState, EvieMilestone
 from agent.llm import structured_llm
 from agent.npc import NPCResponse
+from operator import add
 
 SYSTEM_MESSAGES = [
     SystemMessage("""
@@ -153,9 +153,25 @@ type EvieNodes = Literal["POLITE_MASK", "WARY_SOFTENING", "BITTER_REMEMBERING", 
 "PANICKED_RESISTANCE"]
 
 
-def build_node_prompt(current_node: EvieNodes, emotional_state: str, milestones: List[str], memory_summary: str,
-                      allowed_information: List[str], forbidden_information: List[str], player_input: str) -> str:
-    return f"""
+def _knowledge_system_message(current_knowledge: List[str] | None) -> SystemMessage:
+    existing = "\n".join(f"- {k}" for k in current_knowledge) if current_knowledge else "None yet."
+    return SystemMessage(f"""
+    ## Structured output rules
+
+    You must populate the `knowledge` field with everything the player has revealed so far.
+    The current list is:
+    {existing}
+
+    Rules:
+    - ALWAYS include every distinct fact from the current list above — never drop an item entirely.
+    - You MAY merge or rephrase redundant entries into a single, shorter entry to save space.
+    - Add any new facts the player just revealed in this turn.
+    - Return `null` only if the player has revealed absolutely nothing across the entire conversation.
+    """)
+
+def build_node_prompt(current_node: EvieNodes, emotional_state: str, milestones: List[EvieMilestone], memory_summary: str,
+                      allowed_information: List[str], forbidden_information: List[str], player_input: str) -> SystemMessage:
+    return SystemMessage(f"""
 You are Evelyn "Evie" Marlowe, a lounge singer in a 1952 Los Angeles noir detective game.
 
 Current node:
@@ -165,16 +181,16 @@ Current emotional state:
 {emotional_state}
 
 Known player milestones:
-{milestones}
+{"\n".join(milestones)}
 
 Current memory:
 {memory_summary}
 
 Allowed information in this node:
-{allowed_information}
+{"\n".join(allowed_information)}
 
 Forbidden information in this node:
-{forbidden_information}
+{"\n".join(forbidden_information)}
 
 Player says:
 "{player_input}"
@@ -189,8 +205,12 @@ Rules:
 - Keep the response conversational and noir-styled.
 - Prefer 1 to 4 sentences.
 - Include subtle physical action when emotionally appropriate.
-"""
+""")
 
+def add_set(lst: List[str], item: List[str]) -> List[str]:
+    """Add an item to a list if it's not already present, treating the list like a set."""
+    merged = lst + item
+    return list(set(*merged))
 
 class State(MessagesState):
     """Input state for the agent.
@@ -200,7 +220,7 @@ class State(MessagesState):
     """
     current_node: EvieNodes
     emotion: Literal["relaxed", "nervous", "panicking", "angry", "upset", "depressed"]
-    milestones: List[str]
+    milestones: Annotated[List[EvieMilestone], add_set]
     topic: str
     summary: str
     # Information revealed by player
@@ -241,14 +261,56 @@ class State(MessagesState):
 def build_reasoning_state(state: State) -> EvieReasoningState:
     return {
         **state,
+        "milestones": state.get("milestones") or [],
         "player_input": state["messages"][-1].content if state["messages"] else "",
         "detected_conditions": {}
     }
 
 
-async def polite_mask(state: State) -> Command[Literal[EvieNodes]]:
+async def initialize_evie(state: State) -> Command[EvieNodes]:
+    print("Called initialize_evie")
+    knowledge_msg = _knowledge_system_message(state.get("knowledge"))
+    # note how Command allows you to BOTH update the graph state AND route to the next node
+    return Command(
+        # this is the state update
+        # TODO: update state from memory
+        update={
+            "current_node": "POLITE_MASK",
+            "npc_name": "Evelyn 'Evie' Marlowe",
+            "setting": "Los Angeles, 1952",
+            "location": "Blue Dahlia Club",
+            "relationship_to_victim": "Former lover and singer employed by Victor Vale",
+            "public_identity": "Lounge singer",
+            "secret_identity": "Informant for Detective Hal Brennan",
+            "emotional_state": "relaxed",
+            "trust_level": 1,
+            "fear_level": 0,
+            "suspicion_level": 0,
+            "guilt_pressure": 0,
+            "player_has_accused_evie": False,
+            "player_has_shown_locket": False,
+            "player_has_found_blackmail_photos": False,
+            "player_has_mentioned_brennan": False,
+            "player_has_proven_victor_was_blackmailing_evie": False,
+            "player_has_revealed_murder_weapon": False,
+            "player_knows_evie_was_at_alley": False,
+            "player_has_threatened_arrest": False,
+            "player_has_offered_protection": False,
+            "critical_info_revealed": False,
+            "final_clue_revealed": False,
+            "milestones": []
+        },
+        # this is a replacement for an edge
+        goto="POLITE_MASK" # TODO: read from memory
+    )
+
+async def polite_mask(state: State) -> Command[EvieNodes] | NPCResponse:
     print("Called polite_mask")
-    subgraph_output: EvieReasoningState = evie_reasoning_subgraph.invoke(build_reasoning_state(state))
+    # subgraph_output: EvieReasoningState = await evie_reasoning_subgraph.ainvoke({
+    #     **state,
+    #     "messages": [{"role": "system", "content": build_reasoning_state(state)}]
+    # })
+    subgraph_output: EvieReasoningState = await evie_reasoning_subgraph.ainvoke(build_reasoning_state(state))
     print(subgraph_output)
     knowledge_msg = _knowledge_system_message(state.get("knowledge"))
     node_prompt = build_node_prompt(
@@ -264,7 +326,7 @@ async def polite_mask(state: State) -> Command[Literal[EvieNodes]]:
         - "I left the club around midnight. Took a cab east, went home, washed the smoke out of my hair. That's all there is to it."
         - "Victor and I had history. In Los Angeles, history is just another word for unpaid debt."
         """,
-        milestones=subgraph_output["milestones"],
+        milestones=state.get("milestones") or [],
         memory_summary=knowledge_msg.content if knowledge_msg else "",
         allowed_information=[
             "You may reveal only public information."
@@ -275,17 +337,24 @@ async def polite_mask(state: State) -> Command[Literal[EvieNodes]]:
             "Do not reveal that you were in the alley.",
             "Do not reveal the locket’s significance.",
         ],
+        player_input=state["messages"][-1].content if state["messages"] else "",
     )
 
     # this is a replacement for a conditional edge function
 
     if subgraph_output["current_node"] == state["current_node"]:
-
         response: NPCResponse = await structured_llm.ainvoke(
-            SYSTEM_MESSAGES + [] + [knowledge_msg] + state["messages"]
+            SYSTEM_MESSAGES + [node_prompt] + [knowledge_msg] + state["messages"]
         )
-        return response
-    goto = subgraph_output.lower()
+        return {
+            **subgraph_output,
+            "messages": [AIMessage(content=response.message)],
+            "emotion": response.emotion,
+            "topic": response.topic,
+            "summary": response.summary,
+            "knowledge": response.knowledge,
+        }
+    goto = subgraph_output
 
     # note how Command allows you to BOTH update the graph state AND route to the next node
     return Command(
