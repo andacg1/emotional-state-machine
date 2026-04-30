@@ -5,12 +5,12 @@ Returns a predefined response. Replace logic and configuration as needed.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any, Dict, Literal, List, Sequence, Annotated
 
-from langchain_core.messages import AnyMessage, SystemMessage
+from langchain_core.messages import AIMessage, AnyMessage, SystemMessage
 from langgraph.graph import StateGraph
 from langgraph.runtime import Runtime
+from pydantic import BaseModel
 from typing_extensions import TypedDict
 from langgraph.graph.message import MessagesState, add_messages
 
@@ -37,7 +37,16 @@ llm = ChatOpenAI(
     # other params...
 )
 
-# TODO: set up assistant
+class NPCResponse(BaseModel):
+    message: str
+    emotion: Literal["relaxed", "nervous", "panicking", "angry", "upset", "depressed"]
+    topic: str
+    summary: str
+    knowledge: List[str] | None = None
+
+
+structured_llm = llm.with_structured_output(NPCResponse)
+
 
 class Context(TypedDict):
     """Context parameters for the agent.
@@ -47,10 +56,10 @@ class Context(TypedDict):
     """
     model_name: str
 
+class PrivateState(TypedDict):
+    secret_knowledge: List[str] | None
 
-
-@dataclass
-class State(MessagesState):
+class OverallState(MessagesState):
     """Input state for the agent.
 
     Defines the initial structure of incoming data.
@@ -71,40 +80,38 @@ class State(MessagesState):
     # messages: Annotated[list[AnyMessage], add_messages]
 
 
-async def call_model(state: State, runtime: Runtime[Context]) -> Dict[str, Any]:
-    """Process input and returns output.
-
-    Can use runtime context to alter behavior.
-    """
-    print(state)
-    ai_msg = llm.invoke(state.messages)
-    response = ai_msg.text
-
-    return {
-        # "response": ai_msg.text,
-        "messages": [response]
-        # f"Configured with {(runtime.context or {}).get('my_configurable_param')}"
-    }
-
-messages = [
+SYSTEM_MESSAGES = [
     SystemMessage("""
     You are an agent roleplaying as an NPC character in a video game.
     You should:
     - Act as a specific character in a game
         - Have a name
         - Have context on the background of the character
-    - Have a behaviour tree (potentially with loops) that dictates the current emotional state of the character 
+    - Have a behaviour tree (potentially with loops) that dictates the current emotional state of the character
     - Have some key information that the user is trying to get out of the agent
-    - Have "milestones" that they permanently remember
-        - Only reveal key information once the agent has reached all the necessary milestones
+    - Have "milestones" that you permanently remember
+        - NEVER explicitly tell the user any of these milestones 
+        - Only reveal key information once you have reached all the necessary milestones
         - Allow multiple ways of solving a problem by letting any of the necessary milestones be sufficient for revealing key information
     """)
 ]
 
+
+async def get_user_input(state: OverallState, runtime: Runtime[Context]) -> dict:
+    response: NPCResponse = await structured_llm.ainvoke(SYSTEM_MESSAGES + state["messages"])
+
+    return {
+        "messages": [AIMessage(content=response.message)],
+        "emotion": response.emotion,
+        "topic": response.topic,
+        "summary": response.summary,
+        "knowledge": response.knowledge,
+    }
+
 # Define the graph
 graph = (
-    StateGraph(State(messages=messages), context_schema=Context)
-    .add_node(call_model)
-    .add_edge("__start__", "call_model")
+    StateGraph(OverallState, context_schema=Context)
+    .add_node(get_user_input)
+    .add_edge("__start__", "get_user_input")
     .compile(name="New Graph")
 )
