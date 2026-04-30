@@ -5,47 +5,42 @@ Returns a predefined response. Replace logic and configuration as needed.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Literal, List, Sequence, Annotated
+from typing import Literal, List, Annotated
 
 from langchain_core.messages import AIMessage, AnyMessage, SystemMessage
+from langchain_core.messages.utils import count_tokens_approximately
+from langgraph.constants import START
 from langgraph.graph import StateGraph
 from langgraph.runtime import Runtime
-from pydantic import BaseModel
 from typing_extensions import TypedDict
 from langgraph.graph.message import MessagesState, add_messages
+from langmem.short_term import SummarizationNode, RunningSummary
+from langgraph.checkpoint.memory import InMemorySaver
 
 import getpass
 import os
+
+from agent.llm import structured_llm, summarization_model
+from agent.npc import NPCResponse
 
 if not os.environ.get("OPENAI_API_KEY"):
     os.environ["OPENAI_API_KEY"] = getpass.getpass("Enter your OpenAI API key: ")
 os.environ["PYTHONFROZENMODULES"] = "off"
 
-from langchain_openai import ChatOpenAI
 
-llm = ChatOpenAI(
-    model="gpt-5-nano",
-    # stream_usage=True,
-    # temperature=None,
-    # max_tokens=None,
-    # timeout=None,
-    # reasoning_effort="low",
-    # max_retries=2,
-    # api_key="...",  # If you prefer to pass api key in directly
-    # base_url="...",
-    # organization="...",
-    # other params...
-)
-
-class NPCResponse(BaseModel):
-    message: str
-    emotion: Literal["relaxed", "nervous", "panicking", "angry", "upset", "depressed"]
-    topic: str
-    summary: str
-    knowledge: List[str] | None = None
-
-
-structured_llm = llm.with_structured_output(NPCResponse)
+# llm = ChatOpenAI(
+#     model="gpt-5-nano",
+#     # stream_usage=True,
+#     # temperature=None,
+#     # max_tokens=None,
+#     # timeout=None,
+#     # reasoning_effort="low",
+#     # max_retries=2,
+#     # api_key="...",  # If you prefer to pass api key in directly
+#     # base_url="...",
+#     # organization="...",
+#     # other params...
+# )
 
 
 class Context(TypedDict):
@@ -113,6 +108,13 @@ def _knowledge_system_message(current_knowledge: List[str] | None) -> SystemMess
     - Return `null` only if the player has revealed absolutely nothing across the entire conversation.
     """)
 
+summarization_node = SummarizationNode(
+    token_counter=count_tokens_approximately,
+    model=summarization_model,
+    max_tokens=256,
+    max_tokens_before_summary=256,
+    max_summary_tokens=128,
+)
 
 async def get_user_input(state: OverallState, runtime: Runtime[Context]) -> dict:
     knowledge_msg = _knowledge_system_message(state.get("knowledge"))
@@ -128,10 +130,12 @@ async def get_user_input(state: OverallState, runtime: Runtime[Context]) -> dict
         "knowledge": response.knowledge,
     }
 
+checkpointer = InMemorySaver()
 # Define the graph
 graph = (
     StateGraph(OverallState, context_schema=Context)
     .add_node(get_user_input)
-    .add_edge("__start__", "get_user_input")
-    .compile(name="New Graph")
+    .add_node("summarize", summarization_node)
+    .add_edge(START, "get_user_input")
+    .compile(name="NPC Graph")
 )
