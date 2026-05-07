@@ -1,0 +1,29 @@
+{
+  "name": "agent",
+  "version": "0.0.1",
+  "description": "LangGraph TypeScript port of Evie Marlowe NPC agent.",
+  "license": "MIT",
+  "type": "module",
+  "main": "src/agent/graph.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "dev": "langgraphjs dev",
+    "start": "langgraphjs up"
+  },
+  "dependencies": {
+    "@langchain/core": "^1.1.44",
+    "@langchain/langgraph": "^1.3.0",
+    "@langchain/openai": "^1.4.5",
+    "dotenv": "^17.4.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@langchain/langgraph-cli": "^1.2.1",
+    "typescript": "~5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
