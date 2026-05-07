@@ -97,6 +97,7 @@ export const EvieReasoningStateAnnotation = Annotation.Root({
   critical_info_revealed: Annotation<boolean>(),
   final_clue_revealed: Annotation<boolean>(),
   detected_conditions: Annotation<PlayerInputConditions | Record<string, string>>(),
+  visited_nodes: Annotation<EvieNode[]>(),
 });
 
 export type EvieReasoningState = typeof EvieReasoningStateAnnotation.State;
@@ -213,12 +214,19 @@ function applyTransitions(state: EvieReasoningState): Partial<EvieReasoningUpdat
       player_has_mentioned_brennan &&
       player_has_found_blackmail_photos);
 
-  const next_node = _transition(
-    state.current_node ?? "POLITE_MASK",
-    c,
-    guarded_ready,
-    critical_ready,
-  );
+  const current_node = state.current_node ?? "POLITE_MASK";
+  const visited_nodes: EvieNode[] = [...(state.visited_nodes ?? [])];
+
+  let next_node = _transition(current_node, c, guarded_ready, critical_ready);
+
+  // Refuse to re-enter a node already visited this turn; stay put instead.
+  if (next_node !== current_node && visited_nodes.includes(next_node)) {
+    next_node = current_node;
+  }
+
+  if (!visited_nodes.includes(current_node)) {
+    visited_nodes.push(current_node);
+  }
 
   if (
     next_node === "BROKEN_TRUSTING" ||
@@ -233,6 +241,7 @@ function applyTransitions(state: EvieReasoningState): Partial<EvieReasoningUpdat
 
   return {
     current_node: next_node,
+    visited_nodes,
     trust_level,
     fear_level,
     guilt_pressure,

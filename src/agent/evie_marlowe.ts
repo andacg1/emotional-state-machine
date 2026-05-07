@@ -96,6 +96,7 @@ export class EvieMarlowe {
       guilt_pressure: state.guilt_pressure ?? 0,
       suspicion_level: state.suspicion_level ?? 0,
       milestones: state.milestones ?? [],
+      visited_nodes: state.visited_nodes ?? [],
       player_has_offered_protection: state.player_has_offered_protection ?? false,
       player_has_found_blackmail_photos:
         state.player_has_found_blackmail_photos ?? false,
@@ -169,11 +170,7 @@ export class EvieMarlowe {
       playerInput,
     });
 
-    console.log({
-        subgraphOutput: subgraphOutput.current_node,
-        state: state.current_node
-    })
-      console.log({state})
+
     if (subgraphOutput.current_node === state.current_node) {
       const response = await structuredLlm.invoke([
         ...this.systemMessages,
@@ -188,6 +185,7 @@ export class EvieMarlowe {
         topic: response.topic,
         summary: response.summary,
         knowledge: response.knowledge ?? null,
+        visited_nodes: [],
       } satisfies Partial<StateUpdate> as StateUpdate;
     }
 
@@ -237,6 +235,7 @@ export class EvieMarlowe {
 export const StateAnnotation = Annotation.Root({
   ...MessagesAnnotation.spec,
   current_node: Annotation<EvieNode>(),
+  visited_nodes: Annotation<EvieNode[]>(),
   emotion: Annotation<Emotion>(),
   milestones: Annotation<EvieMilestone[]>({
     reducer: EvieMarlowe.addSetReducer,

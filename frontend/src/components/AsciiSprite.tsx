@@ -45,7 +45,11 @@ export function AsciiSprite({ node, milestones, trustLevel, fearLevel }: Props) 
 
       <div className={`sprite-frame ${fading ? "fading" : ""}`}>
         <div className="scanlines" />
-        <pre className="sprite-art">{SPRITES[displayNode]}</pre>
+        <img
+          className="sprite-img"
+          src={SPRITES[displayNode]}
+          alt={NODE_LABEL[displayNode]}
+        />
       </div>
 
       <div className={`node-badge ${clusterClass}`}>

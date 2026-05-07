@@ -58,7 +58,6 @@ export const graph = new StateGraph(StateAnnotation)
   .addNode("COLD_SHUTDOWN", coldShutdown)
   .addNode("PANICKED_RESISTANCE", panickedResistance)
   .addEdge(START, "INITIALIZE")
-  .addEdge("INITIALIZE", "POLITE_MASK")
   ;
 
 // Patch schema so Studio detects the messages key and enables the Chat tab.

@@ -124,9 +124,9 @@ html, body, #root {
   position: relative;
   background: #050508;
   border: 1px solid var(--border);
-  padding: 12px 8px;
   transition: opacity 0.35s ease;
   overflow: hidden;
+  line-height: 0;
 }
 
 .sprite-frame.fading {
@@ -158,17 +158,15 @@ html, body, #root {
   100% { opacity: 1; }
 }
 
-.sprite-art {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  line-height: 1.35;
-  color: var(--amber);
-  white-space: pre;
+.sprite-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
   position: relative;
   z-index: 1;
-  text-shadow: 0 0 6px rgba(200, 169, 110, 0.5);
   animation: crt-flicker 6s ease-in-out infinite;
-  letter-spacing: 0.02em;
 }
 
 /* ─── Node badge ─────────────────────────────────────────────────────── */
