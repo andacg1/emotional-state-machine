@@ -8,24 +8,25 @@ import {
   StateGraph
 } from "@langchain/langgraph";
 
-import {
-  StateAnnotation,
-  bitterRemembering,
-  brokenTrusting,
-  coldShutdown,
-  corneredConfession,
-  defensiveDenial,
-  evidencePressure,
-  fearSpike,
-  guardedDisclosure,
-  initializeEvie,
-  panickedResistance,
-  politeMask,
-  protectedWitness,
-  warySoftening,
-} from "./evie_marlowe.js";
+import { EvieMarlowe, StateAnnotation } from "./evie_marlowe.js";
 
 const checkpointer = new MemorySaver();
+const evie = new EvieMarlowe();
+const {
+  initializeEvie,
+  politeMask,
+  warySoftening,
+  bitterRemembering,
+  defensiveDenial,
+  evidencePressure,
+  guardedDisclosure,
+  fearSpike,
+  brokenTrusting,
+  protectedWitness,
+  corneredConfession,
+  coldShutdown,
+  panickedResistance,
+} = evie;
 
 export const graph = new StateGraph(StateAnnotation)
   .addNode("INITIALIZE", initializeEvie, {

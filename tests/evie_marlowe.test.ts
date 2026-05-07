@@ -18,13 +18,13 @@ vi.mock("../src/agent/llm.js", () => ({
 }));
 
 import {
-  initializeEvie,
-  politeMask,
-  defensiveDenial,
-  coldShutdown,
+  EvieMarlowe,
   type State,
   type StateUpdate,
 } from "../src/agent/evie_marlowe.js";
+
+const evie = new EvieMarlowe();
+const { initializeEvie, politeMask, defensiveDenial, coldShutdown } = evie;
 
 // ─── shared fixtures ─────────────────────────────────────────────────────────
 
