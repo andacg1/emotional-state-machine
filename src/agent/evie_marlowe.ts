@@ -373,6 +373,11 @@ async function runEmotionalNode(
     playerInput,
   });
 
+  console.log({
+      subgraphOutput: subgraphOutput.current_node,
+      state: state.current_node
+  })
+    console.log({state})
   if (subgraphOutput.current_node === state.current_node) {
     const response = await structuredLlm.invoke([
       ...SYSTEM_MESSAGES,

@@ -27,7 +27,7 @@ import {
 
 const checkpointer = new MemorySaver();
 
-export const graph = new StateGraph(MessagesZodState)
+export const graph = new StateGraph(StateAnnotation)
   .addNode("INITIALIZE", initializeEvie, {
     ends: [
       "POLITE_MASK",
@@ -58,4 +58,26 @@ export const graph = new StateGraph(MessagesZodState)
   .addNode("PANICKED_RESISTANCE", panickedResistance)
   .addEdge(START, "INITIALIZE")
   .addEdge("INITIALIZE", "POLITE_MASK")
-  .compile({ checkpointer, name: "NPC Graph" });
+  ;
+
+// Patch schema so Studio detects the messages key and enables the Chat tab.
+// Annotation.Root() doesn't support jsonSchemaExtra, so we attach a
+// duck-typed schema definition that mirrors all fields and adds langgraph_type.
+(graph as any)._schemaRuntimeDefinition = {
+  getJsonSchema: () => ({
+    type: 'object',
+    properties: {
+      messages: { type: 'array', items: {}, langgraph_type: 'messages', default: [] },
+      // ... include your other state fields here so they show up in Studio
+    },
+  }),
+  getInputJsonSchema: () => ({
+    type: 'object',
+    properties: {
+      messages: { type: 'array', items: {}, langgraph_type: 'messages' },
+      // ... same fields without defaults
+    },
+  }),
+};
+
+graph.compile({ checkpointer, name: "NPC Graph" })
