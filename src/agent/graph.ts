@@ -1,6 +1,12 @@
 import "dotenv/config";
 
-import { MemorySaver, START, StateGraph } from "@langchain/langgraph";
+import {
+  MemorySaver,
+  MessagesAnnotation,
+  MessagesZodState,
+  START,
+  StateGraph
+} from "@langchain/langgraph";
 
 import {
   StateAnnotation,
@@ -21,7 +27,7 @@ import {
 
 const checkpointer = new MemorySaver();
 
-export const graph = new StateGraph(StateAnnotation)
+export const graph = new StateGraph(MessagesZodState)
   .addNode("INITIALIZE", initializeEvie, {
     ends: [
       "POLITE_MASK",

@@ -96,7 +96,7 @@ export const EvieReasoningStateAnnotation = Annotation.Root({
   player_has_revealed_murder_weapon: Annotation<boolean>(),
   critical_info_revealed: Annotation<boolean>(),
   final_clue_revealed: Annotation<boolean>(),
-  detected_conditions: Annotation<PlayerInputConditions | Record<string, never>>(),
+  detected_conditions: Annotation<PlayerInputConditions | Record<string, string>>(),
 });
 
 export type EvieReasoningState = typeof EvieReasoningStateAnnotation.State;
