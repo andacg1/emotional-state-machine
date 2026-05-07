@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { HumanMessage, AIMessage } from "@langchain/core/messages";
+import { BaseMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { Command } from "@langchain/langgraph";
 
 import type { EvieMilestone, EvieNode } from "../src/agent/evie_marlowe_reasoning.js";
@@ -9,11 +9,11 @@ import type { EvieMilestone, EvieNode } from "../src/agent/evie_marlowe_reasonin
 const mockSubgraphInvoke = vi.hoisted(() => vi.fn());
 const mockStructuredLlmInvoke = vi.hoisted(() => vi.fn());
 
-vi.mock("./evie_marlowe_reasoning.js", () => ({
+vi.mock("../src/agent/evie_marlowe_reasoning.js", () => ({
   evieReasoningSubgraph: { invoke: mockSubgraphInvoke },
 }));
 
-vi.mock("./llm.js", () => ({
+vi.mock("../src/agent/llm.js", () => ({
   structuredLlm: { invoke: mockStructuredLlmInvoke },
 }));
 
@@ -23,6 +23,7 @@ import {
   defensiveDenial,
   coldShutdown,
   type State,
+  type StateUpdate,
 } from "../src/agent/evie_marlowe.js";
 
 // ─── shared fixtures ─────────────────────────────────────────────────────────
@@ -159,9 +160,11 @@ describe("evie_marlowe", () => {
       const result = await politeMask(baseState);
 
       expect(result).not.toBeInstanceOf(Command);
-      expect(result.messages).toHaveLength(1);
-      expect(result.messages[0]).toBeInstanceOf(AIMessage);
-      expect((result.messages[0] as AIMessage).content).toBe(defaultLlmResponse.message);
+      const stateResult = result as StateUpdate;
+      const messages = stateResult.messages as BaseMessage[];
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toBeInstanceOf(AIMessage);
+      expect((messages[0] as AIMessage).content).toBe(defaultLlmResponse.message);
     });
 
     test("merges subgraph state updates into the return value", async () => {
@@ -173,7 +176,7 @@ describe("evie_marlowe", () => {
       });
       mockStructuredLlmInvoke.mockResolvedValueOnce(defaultLlmResponse);
 
-      const result = await politeMask(baseState);
+      const result = await politeMask(baseState) as StateUpdate;
 
       expect(result.trust_level).toBe(2);
       expect(result.milestones).toContain("empathy");
@@ -192,7 +195,7 @@ describe("evie_marlowe", () => {
         knowledge: ["Player showed the locket"],
       });
 
-      const result = await politeMask(baseState);
+      const result = await politeMask(baseState) as StateUpdate;
 
       expect(result.emotion).toBe("nervous");
       expect(result.topic).toBe("the murder");
@@ -207,7 +210,7 @@ describe("evie_marlowe", () => {
       });
       mockStructuredLlmInvoke.mockResolvedValueOnce({ ...defaultLlmResponse, knowledge: null });
 
-      const result = await politeMask(baseState);
+      const result = await politeMask(baseState) as StateUpdate;
 
       expect(result.knowledge).toBeNull();
     });
@@ -284,7 +287,7 @@ describe("evie_marlowe", () => {
       const result = await coldShutdown(state);
 
       expect(result).not.toBeInstanceOf(Command);
-      expect(result.messages[0]).toBeInstanceOf(AIMessage);
+      expect(((result as StateUpdate).messages as BaseMessage[])[0]).toBeInstanceOf(AIMessage);
     });
   });
 });
